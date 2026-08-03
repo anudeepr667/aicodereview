@@ -1,5 +1,7 @@
 package com.adgroup.aicodereview.controller;
 
+import com.adgroup.aicodereview.dto.ReviewRequest;
+import com.adgroup.aicodereview.dto.ReviewResponse;
 import com.adgroup.aicodereview.model.Review;
 import com.adgroup.aicodereview.service.ReviewService;
 import org.springframework.web.bind.annotation.*;
@@ -21,8 +23,23 @@ public class ReviewController {
     }
 
     @PostMapping("/review")
-    public Review createReview(@RequestBody Review review) {
-        return reviewService.saveReview(review);
+    public ReviewResponse createReview(@RequestBody ReviewRequest request) {
+
+        Review review = new Review();
+        review.setRepositoryName(request.getRepositoryName());
+        review.setBranchName(request.getBranchName());
+        review.setPullRequestId(request.getPullRequestId());
+
+        Review savedReview = reviewService.saveReview(review);
+
+        ReviewResponse response = new ReviewResponse();
+        response.setId(savedReview.getId());
+        response.setRepositoryName(savedReview.getRepositoryName());
+        response.setBranchName(savedReview.getBranchName());
+        response.setPullRequestId(savedReview.getPullRequestId());
+        response.setReviewText(savedReview.getReviewText());
+
+        return response;
     }
 
     @GetMapping("/reviews")
