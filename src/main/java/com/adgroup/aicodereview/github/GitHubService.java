@@ -44,7 +44,7 @@ public class GitHubService {
 
         return webClient
                 .get()
-                .uri("/repos/{owner}/{repo}/pulls", owner, repo)
+                .uri("/repos/{owner}/{repo}/pulls?per_page=5", owner, repo)
                 .retrieve()
                 .bodyToMono(String.class)
                 .block();
