@@ -1,5 +1,5 @@
 package com.adgroup.aicodereview.github;
-
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -69,4 +69,15 @@ public class GitHubService {
                 .bodyToMono(String.class)
                 .block();
     }
+    public String getPullRequestDiff(String owner, String repo, String pullNumber) {
+
+    return webClient
+            .get()
+            .uri("/repos/{owner}/{repo}/pulls/{pull}",
+                    owner, repo, pullNumber)
+            .accept(MediaType.valueOf("application/vnd.github.v3.diff"))
+            .retrieve()
+            .bodyToMono(String.class)
+            .block();
+}
 }

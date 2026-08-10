@@ -52,4 +52,12 @@ public class GitHubController {
 
         return gitHubService.getContents(owner, repo);
     }
+    @GetMapping("/diff/{owner}/{repo}/{pull}")
+public String diff(
+        @PathVariable String owner,
+        @PathVariable String repo,
+        @PathVariable String pull) {
+
+    return gitHubService.getPullRequestDiff(owner, repo, pull);
+}
 }

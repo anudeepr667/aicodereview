@@ -2,12 +2,21 @@ package com.adgroup.aicodereview.dto;
 
 public class ReviewRequest {
 
+    private String owner;
     private String repositoryName;
     private String branchName;
     private String pullRequestId;
 
     public ReviewRequest() {
     }
+
+    public String getOwner() {
+    return owner;
+}
+
+public void setOwner(String owner) {
+    this.owner = owner;
+}
 
     public String getRepositoryName() {
         return repositoryName;

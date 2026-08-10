@@ -26,9 +26,11 @@ public class ReviewController {
     public ReviewResponse createReview(@RequestBody ReviewRequest request) {
 
         Review review = new Review();
-        review.setRepositoryName(request.getRepositoryName());
-        review.setBranchName(request.getBranchName());
-        review.setPullRequestId(request.getPullRequestId());
+
+review.setOwner(request.getOwner());
+review.setRepositoryName(request.getRepositoryName());
+review.setBranchName(request.getBranchName());
+review.setPullRequestId(request.getPullRequestId());
 
         Review savedReview = reviewService.saveReview(review);
 
