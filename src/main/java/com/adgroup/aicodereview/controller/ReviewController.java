@@ -1,5 +1,5 @@
 package com.adgroup.aicodereview.controller;
-
+import jakarta.validation.Valid;
 import com.adgroup.aicodereview.dto.ReviewRequest;
 import com.adgroup.aicodereview.dto.ReviewResponse;
 import com.adgroup.aicodereview.model.Review;
@@ -22,8 +22,8 @@ public class ReviewController {
         return reviewService.saveSampleReview();
     }
 
-    @PostMapping("/review")
-    public ReviewResponse createReview(@RequestBody ReviewRequest request) {
+   @PostMapping("/review")
+public ReviewResponse createReview(@Valid @RequestBody ReviewRequest request) {
 
         Review review = new Review();
         review.setRepositoryName(request.getRepositoryName());
