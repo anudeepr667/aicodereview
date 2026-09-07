@@ -13,7 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+        "http://localhost:5173",
+        "http://localhost:5174"
+})
 @RestController
 public class ReviewController {
 
@@ -33,17 +36,10 @@ public class ReviewController {
 
         Review review = new Review();
 
-<<<<<<< HEAD
-review.setOwner(request.getOwner());
-review.setRepositoryName(request.getRepositoryName());
-review.setBranchName(request.getBranchName());
-review.setPullRequestId(request.getPullRequestId());
-=======
         review.setOwner(request.getOwner());
         review.setRepositoryName(request.getRepositoryName());
         review.setBranchName(request.getBranchName());
         review.setPullRequestId(request.getPullRequestId());
->>>>>>> origin/Harsha
 
         Review savedReview = reviewService.saveReview(review);
 

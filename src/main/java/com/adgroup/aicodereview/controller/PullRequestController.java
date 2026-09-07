@@ -2,6 +2,8 @@ package com.adgroup.aicodereview.controller;
 
 import com.adgroup.aicodereview.dto.PullRequestAnalyzeRequest;
 import com.adgroup.aicodereview.dto.PullRequestAnalyzeResponse;
+import com.adgroup.aicodereview.model.Review;
+import com.adgroup.aicodereview.service.ReviewService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +24,12 @@ public class PullRequestController {
                     "^https://github\\.com/([^/]+)/([^/]+)/pull/(\\d+)/?$"
             );
 
+    private final ReviewService reviewService;
+
+    public PullRequestController(ReviewService reviewService) {
+        this.reviewService = reviewService;
+    }
+
     @PostMapping("/analyze")
     public ResponseEntity<?> analyzePullRequest(
             @RequestBody PullRequestAnalyzeRequest request
@@ -35,8 +43,7 @@ public class PullRequestController {
                     .body("Pull Request URL is required.");
         }
 
-        Matcher matcher =
-                PR_URL_PATTERN.matcher(url.trim());
+        Matcher matcher = PR_URL_PATTERN.matcher(url.trim());
 
         if (!matcher.matches()) {
             return ResponseEntity
@@ -46,16 +53,16 @@ public class PullRequestController {
 
         String owner = matcher.group(1);
         String repository = matcher.group(2);
-        int pullRequestNumber =
-                Integer.parseInt(matcher.group(3));
+        String pullRequestNumber = matcher.group(3);
 
-        PullRequestAnalyzeResponse response =
-                new PullRequestAnalyzeResponse(
-                        owner,
-                        repository,
-                        pullRequestNumber
-                );
+        Review review = new Review();
 
-        return ResponseEntity.ok(response);
+        review.setOwner(owner);
+        review.setRepositoryName(owner + "/" + repository);
+        review.setPullRequestId(pullRequestNumber);
+
+        Review savedReview = reviewService.saveReview(review);
+
+        return ResponseEntity.ok(savedReview);
     }
 }
