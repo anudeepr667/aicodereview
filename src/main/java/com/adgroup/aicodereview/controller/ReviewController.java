@@ -4,10 +4,16 @@ import com.adgroup.aicodereview.dto.ReviewRequest;
 import com.adgroup.aicodereview.dto.ReviewResponse;
 import com.adgroup.aicodereview.model.Review;
 import com.adgroup.aicodereview.service.ReviewService;
-import org.springframework.web.bind.annotation.*;
+
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 public class ReviewController {
 
@@ -27,10 +33,17 @@ public class ReviewController {
 
         Review review = new Review();
 
+<<<<<<< HEAD
 review.setOwner(request.getOwner());
 review.setRepositoryName(request.getRepositoryName());
 review.setBranchName(request.getBranchName());
 review.setPullRequestId(request.getPullRequestId());
+=======
+        review.setOwner(request.getOwner());
+        review.setRepositoryName(request.getRepositoryName());
+        review.setBranchName(request.getBranchName());
+        review.setPullRequestId(request.getPullRequestId());
+>>>>>>> origin/Harsha
 
         Review savedReview = reviewService.saveReview(review);
 
