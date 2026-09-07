@@ -1,12 +1,10 @@
 import {
   LayoutDashboard,
   GitPullRequest,
-  SearchCode,
-  FolderGit2,
-  BarChart3,
-  Settings,
+  ScanSearch,
   Code2,
 } from "lucide-react";
+import { NavLink } from "react-router-dom";
 
 function Sidebar() {
   return (
@@ -19,38 +17,25 @@ function Sidebar() {
 
       <nav className="sidebar-nav">
 
-        <button className="nav-item active">
+        <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
-        </button>
+        </NavLink>
 
-        <button className="nav-item">
+        <NavLink to="/new-review" className="nav-item">
           <GitPullRequest size={20} />
-          <span>Pull Requests</span>
-        </button>
+          <span>New Review</span>
+        </NavLink>
 
-        <button className="nav-item">
-          <SearchCode size={20} />
-          <span>Reviews</span>
-        </button>
-
-        <button className="nav-item">
-          <FolderGit2 size={20} />
-          <span>Repositories</span>
-        </button>
-
-        <button className="nav-item">
-          <BarChart3 size={20} />
-          <span>Analytics</span>
-        </button>
+        <NavLink to="/quick-scan" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
+          <ScanSearch size={20} />
+          <span>Quick Scan</span>
+        </NavLink>
 
       </nav>
 
       <div className="sidebar-bottom">
-        <button className="nav-item">
-          <Settings size={20} />
-          <span>Settings</span>
-        </button>
+        <span className="sidebar-note">AI-assisted review workspace</span>
       </div>
 
     </aside>

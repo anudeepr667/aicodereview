@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   GitPullRequest,
@@ -9,15 +10,73 @@ import {
 
 import Sidebar from "../components/Sidebar";
 import { reviewDetails } from "../data/mockData";
+import { getReviews } from "../services/api";
+
+function renderReviewText(text) {
+  if (!text) {
+    return <p>No AI review text was returned.</p>;
+  }
+
+  const blocks = text.split(/\n\s*\n/).filter(Boolean);
+
+  return blocks.map((block, index) => {
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    const heading = lines[0]?.match(/^#{1,4}\s+(.+)/);
+
+    if (heading) {
+      return <h3 key={index}>{heading[1]}</h3>;
+    }
+
+    if (lines.every((line) => /^[-*]\s+/.test(line))) {
+      return (
+        <ul key={index}>
+          {lines.map((line) => <li key={line}>{line.replace(/^[-*]\s+/, "")}</li>)}
+        </ul>
+      );
+    }
+
+    if (lines.every((line) => /^\d+[.)]\s+/.test(line))) {
+      return (
+        <ol key={index}>
+          {lines.map((line) => <li key={line}>{line.replace(/^\d+[.)]\s+/, "")}</li>)}
+        </ol>
+      );
+    }
+
+    return <p key={index}>{lines.join(" ")}</p>;
+  });
+}
 
 function ReviewDetails() {
   const { id } = useParams();
+  const [review, setReview] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const review = reviewDetails.find(
+  useEffect(() => {
+    async function loadReview() {
+      try {
+        const reviews = await getReviews();
+        setReview(reviews.find((item) => String(item.id) === id) || null);
+      } catch {
+        setReview(null);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadReview();
+  }, [id]);
+
+  const fallbackReview = reviewDetails.find(
     (item) => item.id === Number(id)
   );
+  const displayedReview = review || fallbackReview;
 
-  if (!review) {
+  if (isLoading) {
+    return <div className="not-found">Loading review...</div>;
+  }
+
+  if (!displayedReview) {
     return (
       <div className="not-found">
         <h2>Review not found</h2>
@@ -44,23 +103,28 @@ function ReviewDetails() {
         <div className="review-page-header">
 
           <div>
+            <span className="eyebrow"><span className="status-dot" /> Review complete</span>
             <div className="review-title-row">
               <GitPullRequest size={24} />
 
               <h1>
-                #{review.id} {review.title}
+                #{displayedReview.id} {displayedReview.title || "Pull request review"}
               </h1>
             </div>
 
             <p>
-              {review.repository} • {review.branch} • {review.author}
+              {displayedReview.repositoryName || displayedReview.repository}
+              {displayedReview.branchName || displayedReview.branch
+                ? ` • ${displayedReview.branchName || displayedReview.branch}`
+                : ""}
+              {displayedReview.owner || displayedReview.author
+                ? ` • ${displayedReview.owner || displayedReview.author}`
+                : ""}
             </p>
           </div>
 
-          <div className="review-score">
-            <span>Code Score</span>
-            <strong>{review.score}</strong>
-            <small>/100</small>
+          <div className="complete-badge">
+            <span className="status-dot" /> Complete
           </div>
 
         </div>
@@ -69,17 +133,17 @@ function ReviewDetails() {
 
           <div>
             <FileCode2 size={18} />
-            <span>{review.changedFiles} files changed</span>
+            <span>{displayedReview.changedFiles || "--"} files changed</span>
           </div>
 
           <div className="addition">
             <Plus size={18} />
-            <span>{review.additions}</span>
+            <span>{displayedReview.additions || "--"}</span>
           </div>
 
           <div className="deletion">
             <Minus size={18} />
-            <span>{review.deletions}</span>
+            <span>{displayedReview.deletions || "--"}</span>
           </div>
 
         </div>
@@ -87,7 +151,9 @@ function ReviewDetails() {
         <section className="review-summary-card">
           <h2>AI Review Summary</h2>
 
-          <p>{review.summary}</p>
+            <div className="review-markdown">
+              {renderReviewText(displayedReview.reviewText || displayedReview.summary)}
+            </div>
         </section>
 
         <div className="review-grid">
@@ -102,7 +168,7 @@ function ReviewDetails() {
             </div>
 
             <pre>
-              <code>{review.code}</code>
+              <code>{displayedReview.code || "No source excerpt was returned by the backend."}</code>
             </pre>
 
           </section>
@@ -113,13 +179,13 @@ function ReviewDetails() {
               <h2>AI Findings</h2>
 
               <span>
-                {review.findings.length} issues
+                {displayedReview.findings?.length || 0} issues
               </span>
             </div>
 
             <div className="findings-list">
 
-              {review.findings.map((finding) => (
+              {(displayedReview.findings || []).map((finding) => (
                 <div
                   className="finding-item"
                   key={finding.id}

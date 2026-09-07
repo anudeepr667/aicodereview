@@ -58,8 +58,6 @@ public class ReviewService {
                 repo,
                 review.getPullRequestId()
         );
-
-        // Send the real diff to Gemini
         String reviewText = aiService.reviewCode(diff);
 
         // Store Gemini's review in PostgreSQL

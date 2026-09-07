@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 
 import {
   ArrowLeft,
+  ArrowRight,
+  Check,
   GitPullRequest,
   AlertTriangle,
   Search,
@@ -13,6 +15,45 @@ import Sidebar from "../components/Sidebar";
 import {
   analyzePullRequest,
 } from "../services/api";
+
+function renderReviewText(text) {
+  if (!text) {
+    return <p>No AI review text was returned.</p>;
+  }
+
+  const blocks = text.split(/\n\s*\n/).filter(Boolean);
+
+  return blocks.map((block, index) => {
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    const heading = lines[0]?.match(/^#{1,4}\s+(.+)/);
+
+    if (heading) {
+      return <h3 key={index}>{heading[1]}</h3>;
+    }
+
+    if (lines.every((line) => /^[-*]\s+/.test(line))) {
+      return (
+        <ul key={index}>
+          {lines.map((line) => (
+            <li key={line}>{line.replace(/^[-*]\s+/, "")}</li>
+          ))}
+        </ul>
+      );
+    }
+
+    if (lines.every((line) => /^\d+[.)]\s+/.test(line))) {
+      return (
+        <ol key={index}>
+          {lines.map((line) => (
+            <li key={line}>{line.replace(/^\d+[.)]\s+/, "")}</li>
+          ))}
+        </ol>
+      );
+    }
+
+    return <p key={index}>{lines.join(" ")}</p>;
+  });
+}
 
 
 function NewReview() {
@@ -214,21 +255,28 @@ function NewReview() {
 
             ) : (
 
-              <div className="pr-preview-content">
+              <div className="completed-review">
 
-                <h2>
-                  Pull Request Detected
-                </h2>
+                <div className="completed-review-header">
+                  <div>
+                    <span className="eyebrow">
+                      <span className="status-dot" /> Review complete
+                    </span>
+                    <h2>REVIEW COMPLETE</h2>
+                  </div>
+
+                  <span className="complete-badge">
+                    <Check size={14} /> Complete
+                  </span>
+                </div>
 
 
                 <div className="pr-info-row">
 
-                  <span>
-                    Owner
-                  </span>
+                  <span>Repository</span>
 
                   <strong>
-                    {prInfo.owner}
+                    {prInfo.repository || prInfo.repositoryName || "-"}
                   </strong>
 
                 </div>
@@ -236,12 +284,10 @@ function NewReview() {
 
                 <div className="pr-info-row">
 
-                  <span>
-                    Repository
-                  </span>
+                  <span>Pull Request</span>
 
                   <strong>
-                    {prInfo.repository}
+                    #{prInfo.pullRequestNumber || prInfo.pullRequestId || "-"}
                   </strong>
 
                 </div>
@@ -249,22 +295,31 @@ function NewReview() {
 
                 <div className="pr-info-row">
 
-                  <span>
-                    Pull Request
-                  </span>
+                  <span>Review ID</span>
 
                   <strong>
-                    #{prInfo.pullRequestNumber}
+                    #{prInfo.id || "-"}
                   </strong>
 
                 </div>
 
+                <section className="immediate-review-result">
+                  <div className="immediate-review-title">
+                    <h3>AI Review</h3>
+                    {prInfo.branchName && <span>Branch: {prInfo.branchName}</span>}
+                  </div>
+                  <div className="review-markdown">
+                    {renderReviewText(prInfo.reviewText)}
+                  </div>
+                </section>
 
-                <div className="analysis-next-step">
-
-                  Spring Boot successfully received
-                  and processed this Pull Request URL.
-
+                <div className="completed-review-actions">
+                  <span>Saved to review history</span>
+                  {prInfo.id && (
+                    <Link to={`/review/${prInfo.id}`} className="details-link">
+                      View full details <ArrowRight size={15} />
+                    </Link>
+                  )}
                 </div>
 
               </div>

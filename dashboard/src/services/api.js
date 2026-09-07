@@ -25,3 +25,13 @@ export async function analyzePullRequest(pullRequestUrl) {
 
   return response.json();
 }
+
+export async function getReviews() {
+  const response = await fetch(`${API_BASE_URL}/reviews`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load review history.");
+  }
+
+  return response.json();
+}
