@@ -6,6 +6,7 @@ import {
 
 import Dashboard from "./pages/Dashboard";
 import ReviewDetails from "./pages/ReviewDetails";
+import ReviewHistory from "./pages/ReviewHistory";
 import NewReview from "./pages/NewReview";
 import QuickCodeScan from "./pages/QuickCodeScan";
 
@@ -14,6 +15,11 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+
+        <Route
+          path="/review-history"
+          element={<ReviewHistory />}
+        />
 
         <Route
           path="/review/:id"

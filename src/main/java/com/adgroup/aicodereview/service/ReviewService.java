@@ -67,6 +67,6 @@ public class ReviewService {
     }
 
     public List<Review> getAllReviews() {
-        return reviewRepository.findAll();
-    }
+    return reviewRepository.findAllByOrderByIdDesc();
+}
 }

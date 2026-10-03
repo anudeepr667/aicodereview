@@ -1,6 +1,6 @@
 import {
+  History,
   LayoutDashboard,
-  GitPullRequest,
   ScanSearch,
   Code2,
 } from "lucide-react";
@@ -22,14 +22,14 @@ function Sidebar() {
           <span>Dashboard</span>
         </NavLink>
 
-        <NavLink to="/new-review" className="nav-item">
-          <GitPullRequest size={20} />
-          <span>New Review</span>
-        </NavLink>
-
         <NavLink to="/quick-scan" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
           <ScanSearch size={20} />
           <span>Quick Scan</span>
+        </NavLink>
+
+        <NavLink to="/review-history" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
+          <History size={20} />
+          <span>Review History</span>
         </NavLink>
 
       </nav>

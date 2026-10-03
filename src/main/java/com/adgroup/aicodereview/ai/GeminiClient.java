@@ -1,6 +1,10 @@
 package com.adgroup.aicodereview.ai;
 
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.HttpClientSettings;
+import org.springframework.http.client.ClientHttpRequestFactory;
 
+import java.time.Duration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,8 +25,17 @@ public class GeminiClient {
     private final RestClient restClient;
 
     public GeminiClient() {
-        this.restClient = RestClient.create();
-    }
+    HttpClientSettings settings =
+            HttpClientSettings.defaults()
+                    .withReadTimeout(Duration.ofMinutes(2));
+
+    ClientHttpRequestFactory requestFactory =
+            ClientHttpRequestFactoryBuilder.detect().build(settings);
+
+    this.restClient = RestClient.builder()
+            .requestFactory(requestFactory)
+            .build();
+}
 
     public String generateReview(String prompt) {
 

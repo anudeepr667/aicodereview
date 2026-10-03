@@ -10,34 +10,105 @@ function renderReviewText(text) {
     return <p>No AI review text was returned.</p>;
   }
 
-  const blocks = text.split(/\n\s*\n/).filter(Boolean);
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-  return blocks.map((block, index) => {
-    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
-    const heading = lines[0]?.match(/^#{1,4}\s+(.+)/);
+  const elements = [];
+  let currentList = [];
+  let listType = null;
 
-    if (heading) {
-      return <h3 key={index}>{heading[1]}</h3>;
+  function flushList() {
+    if (currentList.length === 0) {
+      return;
     }
 
-    if (lines.every((line) => /^[-*]\s+/.test(line))) {
-      return (
-        <ul key={index}>
-          {lines.map((line) => <li key={line}>{line.replace(/^[-*]\s+/, "")}</li>)}
+    if (listType === "ul") {
+      elements.push(
+        <ul key={`list-${elements.length}`}>
+          {currentList.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
         </ul>
       );
     }
 
-    if (lines.every((line) => /^\d+[.)]\s+/.test(line))) {
-      return (
-        <ol key={index}>
-          {lines.map((line) => <li key={line}>{line.replace(/^\d+[.)]\s+/, "")}</li>)}
+    if (listType === "ol") {
+      elements.push(
+        <ol key={`list-${elements.length}`}>
+          {currentList.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
         </ol>
       );
     }
 
-    return <p key={index}>{lines.join(" ")}</p>;
+    currentList = [];
+    listType = null;
+  }
+
+  lines.forEach((line, index) => {
+    const heading = line.match(/^#{1,4}\s+(.+)/);
+    const bullet = line.match(/^[-*]\s+(.+)/);
+    const numbered = line.match(/^\d+[.)]\s+(.+)/);
+
+    if (heading) {
+      flushList();
+
+      elements.push(
+        <h3 key={`heading-${index}`}>
+          {heading[1]}
+        </h3>
+      );
+
+      return;
+    }
+
+    if (numbered && /^[-*]\s+/.test(lines[index + 1] || "")) {
+      flushList();
+
+      elements.push(
+        <h3 key={`heading-${index}`}>
+          {numbered[0]}
+        </h3>
+      );
+
+      return;
+    }
+
+    if (bullet) {
+      if (listType !== "ul") {
+        flushList();
+        listType = "ul";
+      }
+
+      currentList.push(bullet[1]);
+      return;
+    }
+
+    if (numbered) {
+      if (listType !== "ol") {
+        flushList();
+        listType = "ol";
+      }
+
+      currentList.push(numbered[1]);
+      return;
+    }
+
+    flushList();
+
+    elements.push(
+      <p key={`paragraph-${index}`}>
+        {line}
+      </p>
+    );
   });
+
+  flushList();
+
+  return elements;
 }
 
 
@@ -162,7 +233,6 @@ function Dashboard() {
               <span className="section-kicker">Review history</span>
               <h2>Recent Reviews</h2>
             </div>
-            <Link to="/new-review">Open full analyzer <ArrowRight size={15} /></Link>
           </div>
 
           {reviews.length === 0 ? (
