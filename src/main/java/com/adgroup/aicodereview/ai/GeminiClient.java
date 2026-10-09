@@ -45,17 +45,22 @@ public class GeminiClient {
             + ":generateContent?key="
             + apiKey;
 
-        Map<String, Object> body = Map.of(
-                "contents",
-                new Object[]{
-                        Map.of(
-                                "parts",
-                                new Object[]{
-                                        Map.of("text", prompt)
-                                }
-                        )
-                }
-        );
+        
+Map<String, Object> body = Map.of(
+        "contents",
+        new Object[]{
+                Map.of(
+                        "parts",
+                        new Object[]{
+                                Map.of("text", prompt)
+                        }
+                )
+        },
+        "generationConfig",
+        Map.of(
+                "responseMimeType", "application/json"
+        )
+);
 
         try {
 

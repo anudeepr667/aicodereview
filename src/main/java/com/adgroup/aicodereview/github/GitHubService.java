@@ -69,15 +69,17 @@ public class GitHubService {
                 .bodyToMono(String.class)
                 .block();
     }
-    public String getPullRequestDiff(String owner, String repo, String pullNumber) {
+    
+public String getPullRequestDiff(String owner, String repo, String pullNumber) {
 
     return webClient
             .get()
             .uri("/repos/{owner}/{repo}/pulls/{pull}",
                     owner, repo, pullNumber)
-            .accept(MediaType.valueOf("application/vnd.github.v3.diff"))
+            .header("Accept", "application/vnd.github.diff")
             .retrieve()
             .bodyToMono(String.class)
             .block();
 }
+
 }

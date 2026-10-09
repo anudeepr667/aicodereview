@@ -1,4 +1,7 @@
+
 package com.adgroup.aicodereview.ai;
+
+import com.adgroup.aicodereview.dto.AIReviewResult;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,10 +16,7 @@ public class AIController {
     }
 
     @PostMapping("/ai/review")
-   public String reviewCode(@RequestBody String diff) {
-
-       
-
+    public AIReviewResult reviewCode(@RequestBody String diff) {
         return aiService.reviewCode(diff);
     }
 }

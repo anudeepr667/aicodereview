@@ -1,9 +1,13 @@
+
 package com.adgroup.aicodereview.service;
 
 import com.adgroup.aicodereview.ai.AIService;
+import com.adgroup.aicodereview.dto.AIReviewResult;
 import com.adgroup.aicodereview.github.GitHubService;
 import com.adgroup.aicodereview.model.Review;
 import com.adgroup.aicodereview.repository.ReviewRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,15 +18,18 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final GitHubService gitHubService;
     private final AIService aiService;
+    private final ObjectMapper objectMapper;
 
     public ReviewService(
             ReviewRepository reviewRepository,
             GitHubService gitHubService,
-            AIService aiService) {
+            AIService aiService,
+            ObjectMapper objectMapper) {
 
         this.reviewRepository = reviewRepository;
         this.gitHubService = gitHubService;
         this.aiService = aiService;
+        this.objectMapper = objectMapper;
     }
 
     public Review saveSampleReview() {
@@ -39,9 +46,6 @@ public class ReviewService {
 
     public Review saveReview(Review review) {
 
-        // Example repositoryName:
-        // spring-projects/spring-boot
-
         String[] repositoryParts = review.getRepositoryName().split("/");
 
         if (repositoryParts.length != 2) {
@@ -52,21 +56,26 @@ public class ReviewService {
         String owner = repositoryParts[0];
         String repo = repositoryParts[1];
 
-        // Get the real Pull Request diff from GitHub
         String diff = gitHubService.getPullRequestDiff(
                 owner,
                 repo,
                 review.getPullRequestId()
         );
-        String reviewText = aiService.reviewCode(diff);
 
-        // Store Gemini's review in PostgreSQL
-        review.setReviewText(reviewText);
+        AIReviewResult aiReviewResult = aiService.reviewCode(diff);
+
+        try {
+            String reviewText = objectMapper.writeValueAsString(aiReviewResult);
+            review.setReviewText(reviewText);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(
+                    "Unable to serialize the AI review result.", e);
+        }
 
         return reviewRepository.save(review);
     }
 
     public List<Review> getAllReviews() {
-    return reviewRepository.findAllByOrderByIdDesc();
-}
+        return reviewRepository.findAllByOrderByIdDesc();
+    }
 }
