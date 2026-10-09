@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "AI Code Review",
+  "version": "1.0.0",
+  "description": "Review GitHub pull requests using AI Code Review",
+
+  "permissions": [
+    "contextMenus"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  }
+}

@@ -1,4 +1,5 @@
 package com.adgroup.aicodereview.model;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,20 +12,22 @@ public class Review {
     @Id
 @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String owner;
     private String repositoryName;
     private String branchName;
     private String pullRequestId;
-    private String reviewText;
+    @Column(columnDefinition = "TEXT")
+private String reviewText;
 
     public Review() {
 }
 
-    public Review(Long id,String repositoryName,String branchName,String pullRequestId,String reviewText) {
-         this.id=id;
-         this.repositoryName=repositoryName;
-         this.branchName=branchName;
-         this.pullRequestId=pullRequestId;
-         this.reviewText=reviewText;
+   public Review(Long id,
+              String owner,
+              String repositoryName,
+              String branchName,
+              String pullRequestId,
+              String reviewText){
          
     }
     public Long getId() {
@@ -34,7 +37,13 @@ public class Review {
 public void setId(Long id) {
     this.id = id;
 }
+public String getOwner() {
+    return owner;
+}
 
+public void setOwner(String owner) {
+    this.owner = owner;
+}
 public String getRepositoryName() {
     return repositoryName;
 }
