@@ -1,6 +1,7 @@
 import { createElement } from "react";
-import { Activity, BarChart3, Bot, History as HistoryIcon, LayoutDashboard, ScanLine } from "lucide-react";
+import { Activity, BarChart3, Bot, History as HistoryIcon, LayoutDashboard, LogOut, ScanLine, ShieldCheck } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
 
 const links = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -10,6 +11,9 @@ const links = [
 ];
 
 export default function Navbar() {
+  const { user, logout } = useAuth();
+  if (!user) return null;
+
   return (
     <header className="navbar-wrap">
       <nav className="navbar" aria-label="Primary navigation">
@@ -25,7 +29,7 @@ export default function Navbar() {
             </NavLink>
           ))}
         </div>
-        <span className="nav-status"><Activity size={14} /> Live</span>
+        <div className="nav-account"><span className="nav-status"><Activity size={14} /> Live</span><span className="nav-user">{user.role === "ADMIN" && <ShieldCheck size={14} />}<span>{user.name}</span></span><button className="nav-logout" type="button" onClick={logout} title="Sign out"><LogOut size={15} /><span>Sign out</span></button></div>
       </nav>
     </header>
   );
