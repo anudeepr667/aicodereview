@@ -3,20 +3,18 @@ package com.adgroup.aicodereview.controller;
 import com.adgroup.aicodereview.dto.PullRequestAnalyzeRequest;
 import com.adgroup.aicodereview.dto.PullRequestAnalyzeResponse;
 import com.adgroup.aicodereview.model.Review;
+import com.adgroup.aicodereview.model.User;
 import com.adgroup.aicodereview.service.ReviewService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/pull-requests")
-@CrossOrigin(origins = {
-        "http://localhost:5173",
-        "http://localhost:5174"
-})
 public class PullRequestController {
 
     private static final Pattern PR_URL_PATTERN =
@@ -33,6 +31,7 @@ public class PullRequestController {
     @PostMapping("/analyze")
     public ResponseEntity<?> analyzePullRequest(
             @RequestBody PullRequestAnalyzeRequest request
+            , @AuthenticationPrincipal User user
     ) {
 
         String url = request.getPullRequestUrl();
@@ -61,7 +60,7 @@ public class PullRequestController {
         review.setRepositoryName(owner + "/" + repository);
         review.setPullRequestId(pullRequestNumber);
 
-        Review savedReview = reviewService.saveReview(review);
+        Review savedReview = reviewService.saveReview(review, user);
 
         return ResponseEntity.ok(savedReview);
     }

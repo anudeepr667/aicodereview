@@ -3,20 +3,17 @@ package com.adgroup.aicodereview.controller;
 import com.adgroup.aicodereview.dto.ReviewRequest;
 import com.adgroup.aicodereview.dto.ReviewResponse;
 import com.adgroup.aicodereview.model.Review;
+import com.adgroup.aicodereview.model.User;
 import com.adgroup.aicodereview.service.ReviewService;
 
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
 
-@CrossOrigin(origins = {
-        "http://localhost:5173",
-        "http://localhost:5174"
-})
 @RestController
 public class ReviewController {
 
@@ -27,12 +24,12 @@ public class ReviewController {
     }
 
     @GetMapping("/review")
-    public Review getReview() {
-        return reviewService.saveSampleReview();
+    public Review getReview(@AuthenticationPrincipal User user) {
+        return reviewService.saveSampleReview(user);
     }
 
     @PostMapping("/review")
-    public ReviewResponse createReview(@RequestBody ReviewRequest request) {
+    public ReviewResponse createReview(@RequestBody ReviewRequest request, @AuthenticationPrincipal User user) {
 
         Review review = new Review();
 
@@ -41,7 +38,7 @@ public class ReviewController {
         review.setBranchName(request.getBranchName());
         review.setPullRequestId(request.getPullRequestId());
 
-        Review savedReview = reviewService.saveReview(review);
+        Review savedReview = reviewService.saveReview(review, user);
 
         ReviewResponse response = new ReviewResponse();
         response.setId(savedReview.getId());
@@ -54,7 +51,7 @@ public class ReviewController {
     }
 
     @GetMapping("/reviews")
-    public List<Review> getAllReviews() {
-        return reviewService.getAllReviews();
+    public List<Review> getAllReviews(@AuthenticationPrincipal User user) {
+        return reviewService.getReviewsFor(user);
     }
 }

@@ -1,10 +1,15 @@
 package com.adgroup.aicodereview.model;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.time.Instant;
 
 @Entity
 @Table(name = "reviews")
@@ -19,8 +24,29 @@ public class Review {
     @Column(columnDefinition = "TEXT")
 private String reviewText;
 
+    @Column(updatable = false)
+    private Instant createdAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String languages;
+
+    @Column(columnDefinition = "TEXT")
+    private String technologies;
+
+    @JsonIgnore
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    private User user;
+
     public Review() {
 }
+
+    @PrePersist
+    void setCreatedAt() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+    }
 
    public Review(Long id,
               String owner,
@@ -74,6 +100,35 @@ public String getReviewText() {
 
 public void setReviewText(String reviewText) {
     this.reviewText = reviewText;
+}
+
+public Instant getCreatedAt() {
+    return createdAt;
+}
+
+public String getLanguages() {
+    return languages;
+}
+
+public void setLanguages(String languages) {
+    this.languages = languages;
+}
+
+public String getTechnologies() {
+    return technologies;
+}
+
+public void setTechnologies(String technologies) {
+    this.technologies = technologies;
+}
+
+@JsonIgnore
+public User getUser() {
+    return user;
+}
+
+public void setUser(User user) {
+    this.user = user;
 }
 
 
