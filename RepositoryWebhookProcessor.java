@@ -113,4 +113,6 @@ public final class RepositoryWebhookProcessor {
     public interface FindingExtractor {
         List<String> extract(String diff);
     }
+
+    
 }
