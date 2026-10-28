@@ -5,6 +5,7 @@ import com.adgroup.aicodereview.dto.ReviewResponse;
 import com.adgroup.aicodereview.model.Review;
 import com.adgroup.aicodereview.model.User;
 import com.adgroup.aicodereview.service.ReviewService;
+import com.adgroup.aicodereview.service.ReviewTiming;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,23 +32,32 @@ public class ReviewController {
     @PostMapping("/review")
     public ReviewResponse createReview(@RequestBody ReviewRequest request, @AuthenticationPrincipal User user) {
 
-        Review review = new Review();
+        String previousCorrelationId = ReviewTiming.setCorrelationId(ReviewTiming.correlationId());
+        try {
+            Review review = ReviewTiming.measure("review_controller_preparation", () -> {
+                Review requestedReview = new Review();
+                requestedReview.setOwner(request.getOwner());
+                requestedReview.setRepositoryName(request.getRepositoryName());
+                requestedReview.setBranchName(request.getBranchName());
+                requestedReview.setPullRequestId(request.getPullRequestId());
+                return requestedReview;
+            });
 
-        review.setOwner(request.getOwner());
-        review.setRepositoryName(request.getRepositoryName());
-        review.setBranchName(request.getBranchName());
-        review.setPullRequestId(request.getPullRequestId());
+            Review savedReview = reviewService.saveReview(review, user);
 
-        Review savedReview = reviewService.saveReview(review, user);
+            return ReviewTiming.measure("review_controller_response_mapping", () -> {
+                ReviewResponse response = new ReviewResponse();
+                response.setId(savedReview.getId());
+                response.setRepositoryName(savedReview.getRepositoryName());
+                response.setBranchName(savedReview.getBranchName());
+                response.setPullRequestId(savedReview.getPullRequestId());
+                response.setReviewText(savedReview.getReviewText());
 
-        ReviewResponse response = new ReviewResponse();
-        response.setId(savedReview.getId());
-        response.setRepositoryName(savedReview.getRepositoryName());
-        response.setBranchName(savedReview.getBranchName());
-        response.setPullRequestId(savedReview.getPullRequestId());
-        response.setReviewText(savedReview.getReviewText());
-
-        return response;
+                return response;
+            });
+        } finally {
+            ReviewTiming.restoreCorrelationId(previousCorrelationId);
+        }
     }
 
     @GetMapping("/reviews")

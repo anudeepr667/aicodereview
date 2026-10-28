@@ -1,13 +1,16 @@
-import { ChevronDown, ChevronUp, FileText, FolderGit2, LoaderCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, ChevronUp, ExternalLink, FileText, FolderGit2, LoaderCircle, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { getReviews } from "../services/api";
 import ReviewContent from "../components/ReviewContent";
+import ReviewShareButton from "../components/ReviewShareButton";
 import { EmptyState } from "./Dashboard";
-import { orderReviews, parseReviewText, repositoryName, reviewDate } from "../utils/reviewData";
+import { githubPullRequestUrl, orderReviews, parseReviewText, repositoryName, reviewDate } from "../utils/reviewData";
 
 function HistoryCard({ review, expanded, onToggle }) {
   const parsedReview = parseReviewText(review.reviewText);
   const date = reviewDate(review);
+  const pullRequestUrl = githubPullRequestUrl(review);
 
   return (
     <article className={`history-card${expanded ? " expanded" : ""}`}>
@@ -22,6 +25,21 @@ function HistoryCard({ review, expanded, onToggle }) {
               <span>Review #{review.id || "—"}</span>
               {date && <><i /><span>{date}</span></>}
             </span>
+            <span className="history-card-links">
+              {parsedReview
+                ? `${parsedReview.findings.length} actionable ${parsedReview.findings.length === 1 ? "finding" : "findings"}`
+                : "Finding count unavailable"}
+              <i />
+              <Link className="history-review-link" to={`/history?review=${encodeURIComponent(review.id)}`}>View detailed review</Link>
+              {pullRequestUrl && (
+                <>
+                  <i />
+                  <a className="history-review-link" href={pullRequestUrl} target="_blank" rel="noreferrer">
+                    Original PR <ExternalLink size={13} />
+                  </a>
+                </>
+              )}
+            </span>
           </div>
         </div>
         {!expanded && parsedReview && <div className="history-card-score"><strong>{parsedReview.overallScore ?? "—"}</strong><span>/100</span></div>}
@@ -33,6 +51,7 @@ function HistoryCard({ review, expanded, onToggle }) {
             <span>Pull Request<strong>#{review.pullRequestId || "—"}</strong></span>
             <span>Review ID<strong>#{review.id || "—"}</strong></span>
           </div>
+          <ReviewShareButton review={review} />
           {parsedReview ? <ReviewContent review={parsedReview} /> : <p className="legacy-review">{review.reviewText ? "This review uses an older format and cannot be displayed as structured findings." : "No review content was returned."}</p>}
         </div>
       )}
@@ -46,16 +65,31 @@ function HistoryCard({ review, expanded, onToggle }) {
 
 export default function History() {
   const [reviews, setReviews] = useState([]);
-  const [expandedId, setExpandedId] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedReviewId = searchParams.get("review");
+  const [expandedId, setExpandedId] = useState(requestedReviewId);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    getReviews()
-      .then((data) => setReviews(orderReviews(data)))
-      .catch(() => setError("Unable to load review history right now."))
-      .finally(() => setIsLoading(false));
+  const loadReviews = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      setReviews(orderReviews(await getReviews()));
+    } catch {
+      setError("Unable to load review history right now.");
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadReviews();
+  }, [loadReviews]);
+
+  useEffect(() => {
+    setExpandedId(requestedReviewId);
+  }, [requestedReviewId]);
 
   return (
     <main className="page-shell">
@@ -67,10 +101,15 @@ export default function History() {
         </div>
         <span className="count-badge">{reviews.length} {reviews.length === 1 ? "review" : "reviews"}</span>
       </div>
-      {error && <div className="page-alert">{error}</div>}
+      {error && (
+        <div className="page-alert" role="alert">
+          {error}
+          <button type="button" onClick={loadReviews}><RefreshCw size={15} /> Retry</button>
+        </div>
+      )}
       {isLoading ? (
         <div className="loading-page"><LoaderCircle className="spin" size={22} /> Loading review history...</div>
-      ) : reviews.length === 0 ? (
+      ) : error && reviews.length === 0 ? null : reviews.length === 0 ? (
         <EmptyState />
       ) : (
         <section className="history-list">
@@ -78,8 +117,11 @@ export default function History() {
             <HistoryCard
               key={review.id}
               review={review}
-              expanded={expandedId === review.id}
-              onToggle={() => setExpandedId(expandedId === review.id ? null : review.id)}
+              expanded={expandedId === String(review.id)}
+              onToggle={() => {
+                setExpandedId(expandedId === String(review.id) ? null : String(review.id));
+                if (requestedReviewId) setSearchParams({}, { replace: true });
+              }}
             />
           ))}
         </section>

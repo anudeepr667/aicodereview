@@ -11,34 +11,19 @@ import {
   RotateCcw
 } from "lucide-react";
 
-import { createReview } from "../services/api";
-
+import { Link } from "react-router-dom";
+import {
+  clearReviewRequestError,
+  getReviewRequestState,
+  submitReviewRequest,
+  subscribeToReviewRequest
+} from "../services/reviewRequest";
 import {
   parseGitHubPullRequestUrl
 } from "../utils/parseGitHubUrl";
 import { parseReviewText } from "../utils/reviewData";
 import ReviewContent from "../components/ReviewContent";
-
-
-function requestErrorMessage(error) {
-  if (!error.response) {
-    return "Unable to connect to the review server. Check that the backend is running and try again.";
-  }
-
-  const responseData = error.response.data;
-  if (typeof responseData === "string" && responseData.trim()) {
-    return responseData;
-  }
-
-  if (responseData && typeof responseData === "object") {
-    const message = responseData.message || responseData.error;
-    if (typeof message === "string" && message.trim()) {
-      return message;
-    }
-  }
-
-  return `Unable to analyze this pull request (HTTP ${error.response.status}).`;
-}
+import ReviewShareButton from "../components/ReviewShareButton";
 
 
 export default function HomePage() {
@@ -46,32 +31,66 @@ export default function HomePage() {
   const [
     pullRequestUrl,
     setPullRequestUrl
-  ] = useState("");
+  ] = useState(() => getReviewRequestState().pullRequestUrl || "");
 
   const [
-    review,
-    setReview
-  ] = useState(null);
+    requestState,
+    setRequestState
+  ] = useState(getReviewRequestState);
 
-  const [
-    error,
-    setError
-  ] = useState("");
-
-  const [
-    isLoading,
-    setIsLoading
-  ] = useState(false);
+  const [inputError, setInputError] = useState("");
+  const review = requestState.review;
+  const isLoading = requestState.status === "processing";
 
   const structuredReview = review
     ? parseReviewText(review.reviewText)
     : null;
+  const interruptedCurrentReview = requestState.status === "interrupted"
+    && requestState.pullRequestUrl === pullRequestUrl;
 
 
   const autoReviewStarted = useRef(false);
+  const reviewClickStartedAt = useRef(null);
+  const measuredReviewId = useRef(null);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToReviewRequest((nextState) => {
+      setRequestState(nextState);
+      if (nextState.pullRequestUrl) {
+        setPullRequestUrl(nextState.pullRequestUrl);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
-  async function reviewPullRequest(url) {
+  useEffect(() => {
+    if (requestState.status === "failed" || requestState.status === "interrupted") {
+      reviewClickStartedAt.current = null;
+      return;
+    }
+
+    if (requestState.status !== "completed"
+      || !review?.id
+      || reviewClickStartedAt.current === null
+      || measuredReviewId.current === review.id) {
+      return;
+    }
+
+    measuredReviewId.current = review.id;
+    console.info(
+      "Review timing:",
+      JSON.stringify({
+        source: "browser",
+        stage: "review_click_to_render",
+        durationMs: Math.round(performance.now() - reviewClickStartedAt.current),
+        outcome: "success",
+        reviewId: review.id
+      })
+    );
+    reviewClickStartedAt.current = null;
+  }, [requestState.status, review]);
+
+  async function reviewPullRequest(url, { automatic = false, force = false } = {}) {
 
     const parsed =
       parseGitHubPullRequestUrl(url);
@@ -79,63 +98,33 @@ export default function HomePage() {
 
     if (!parsed) {
 
-      setReview(null);
-
-      setError(
-        "Enter a valid GitHub pull request URL."
-      );
+      setInputError("Enter a valid GitHub pull request URL.");
 
       return;
 
     }
 
+    const savedState = getReviewRequestState();
+    if (automatic && savedState.pullRequestUrl === url && savedState.status !== "idle") {
+      return;
+    }
+    if (!force
+      && savedState.pullRequestUrl === url
+      && savedState.status === "interrupted") {
+      return;
+    }
 
     setPullRequestUrl(url);
-
-    setError("");
-
-    setReview(null);
-
-    setIsLoading(true);
-
+    setInputError("");
 
     try {
-
-      const result =
-        await createReview({
-
-          repositoryName:
-            `${parsed.owner}/${parsed.repo}`,
-
-          branchName:
-            "main",
-
-          pullRequestId:
-            parsed.pullRequestId
-
-        });
-
-
-      setReview(result);
-      window.dispatchEvent(new Event("reviews:updated"));
-
-
-    } catch (requestError) {
-
-      console.error(
-        "Review request failed:",
-        requestError
-      );
-
-      setError(
-        requestErrorMessage(requestError)
-      );
-
-
-    } finally {
-
-      setIsLoading(false);
-
+      await submitReviewRequest(url, {
+        repositoryName: `${parsed.owner}/${parsed.repo}`,
+        branchName: "main",
+        pullRequestId: parsed.pullRequestId
+      }, { allowInterruptedRetry: force });
+    } catch {
+      // The shared request store publishes a safe error state for the mounted page.
     }
 
   }
@@ -144,6 +133,7 @@ export default function HomePage() {
   async function handleSubmit(event) {
 
     event.preventDefault();
+    reviewClickStartedAt.current = performance.now();
 
     await reviewPullRequest(
       pullRequestUrl
@@ -182,9 +172,7 @@ export default function HomePage() {
 
     autoReviewStarted.current = true;
 
-
     setPullRequestUrl(prUrl);
-
 
     window.history.replaceState(
       {},
@@ -192,8 +180,7 @@ export default function HomePage() {
       window.location.pathname
     );
 
-
-    reviewPullRequest(prUrl);
+    reviewPullRequest(prUrl, { automatic: true });
 
   }, []);
 
@@ -284,7 +271,7 @@ export default function HomePage() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || interruptedCurrentReview}
             >
 
               {
@@ -318,8 +305,7 @@ export default function HomePage() {
                 className="spinner"
               />
 
-              Analyzing GitHub pull
-              request with AI…
+              Analyzing pull request...
 
             </div>
 
@@ -328,7 +314,9 @@ export default function HomePage() {
 
 
         {
-          error && (
+          (inputError
+            || requestState.status === "failed"
+            || interruptedCurrentReview) && (
 
             <div
               className="notice error"
@@ -336,25 +324,31 @@ export default function HomePage() {
             >
 
               <span>
-                {error}
+                {inputError || requestState.errorMessage}
               </span>
 
-
-              <button
-                type="button"
-                onClick={() =>
-                  setError("")
-                }
-              >
-
-                <RotateCcw
-                  size={16}
-                />
-
-                Try Again
-
-              </button>
-
+              {interruptedCurrentReview ? (
+                <>
+                  <Link to="/history" className="text-link">Check review history</Link>
+                  <button
+                    type="button"
+                    onClick={() => reviewPullRequest(pullRequestUrl, { force: true })}
+                  >
+                    Start another review
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputError("");
+                    clearReviewRequestError();
+                  }}
+                >
+                  <RotateCcw size={16} />
+                  Try Again
+                </button>
+              )}
 
             </div>
 
@@ -447,6 +441,7 @@ export default function HomePage() {
 
             </div>
 
+            <ReviewShareButton review={review} />
 
             <div className="review-text">
               {structuredReview ? (

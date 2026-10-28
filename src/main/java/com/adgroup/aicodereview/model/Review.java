@@ -33,6 +33,9 @@ private String reviewText;
     @Column(columnDefinition = "TEXT")
     private String technologies;
 
+    @Column(name = "webhook_delivery_id", unique = true, length = 128)
+    private String webhookDeliveryId;
+
     @JsonIgnore
     @ManyToOne
     @JoinColumn(name = "user_id")
@@ -120,6 +123,14 @@ public String getTechnologies() {
 
 public void setTechnologies(String technologies) {
     this.technologies = technologies;
+}
+
+public String getWebhookDeliveryId() {
+    return webhookDeliveryId;
+}
+
+public void setWebhookDeliveryId(String webhookDeliveryId) {
+    this.webhookDeliveryId = webhookDeliveryId;
 }
 
 @JsonIgnore
