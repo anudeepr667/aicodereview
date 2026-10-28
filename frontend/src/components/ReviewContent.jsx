@@ -1,31 +1,12 @@
 import ReactMarkdown from "react-markdown";
 import { ShieldAlert } from "lucide-react";
-import { reviewTextValue } from "../utils/reviewData";
-
-const CATEGORY_ORDER = [
-  "Bugs or Logical Errors",
-  "Security Vulnerabilities",
-  "Performance Improvements",
-  "Code Quality and Readability",
-  "Java and Framework Best Practices",
-  "Positive Aspects"
-];
+import { buildCategoryReviews, reviewTextValue } from "../utils/reviewData";
 
 export default function ReviewContent({ review }) {
   const score = Number.isFinite(Number(review.overallScore))
     ? Math.min(100, Math.max(0, Number(review.overallScore)))
     : null;
-  const categoryReviews = new Map(
-    review.categoryReviews
-      .filter((item) => item && typeof item.category === "string")
-      .map((item) => [item.category, item.review])
-  );
-  const categories = [
-    ...CATEGORY_ORDER,
-    ...review.categoryReviews
-      .map((item) => item?.category)
-      .filter((category) => typeof category === "string" && !CATEGORY_ORDER.includes(category))
-  ];
+  const categories = buildCategoryReviews(review.categoryReviews);
 
   return (
     <div className="structured-review">
@@ -53,18 +34,15 @@ export default function ReviewContent({ review }) {
       <section className="category-list">
         <div className="review-section-heading">
           <p className="section-kicker">Review breakdown</p>
-          <span>Six review lenses</span>
+          <span>Five review lenses</span>
         </div>
-        {categories.map((category, index) => (
+        {categories.map(({ category, review: categoryReview }, index) => (
           <article className="category-section" key={category}>
             <div className="category-number">{String(index + 1).padStart(2, "0")}</div>
             <div>
               <h3>{category}</h3>
               <ReactMarkdown>
-                {reviewTextValue(
-                  categoryReviews.get(category),
-                  "No category-specific explanation was provided."
-                )}
+                {reviewTextValue(categoryReview, "No category-specific explanation was provided.")}
               </ReactMarkdown>
             </div>
           </article>

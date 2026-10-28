@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -24,6 +25,56 @@ class FindingDeduplicationTest {
 
         assertEquals(List.of(gemini), combine(List.of(gemini), List.of(semgrep)));
         verify(aiService, never()).areDuplicateFindings(gemini, semgrep);
+    }
+
+    @Test
+    void keepsHighestSeverityAndMergesEvidenceForExactDuplicateFindings() {
+        ReviewFinding gemini = finding("src/Main.java", 12, "Unsafe SQL query");
+        gemini.setSeverity("Low");
+        gemini.setExplanation("Gemini evidence");
+        ReviewFinding semgrep = finding("src\\Main.java", 12, "Unsafe SQL query");
+        semgrep.setSeverity("Critical");
+        semgrep.setSuggestedFix("Use a parameterized query.");
+
+        List<ReviewFinding> combined = combine(List.of(gemini), List.of(semgrep));
+
+        assertEquals(1, combined.size());
+        assertEquals("Critical", combined.get(0).getSeverity());
+        assertEquals("Gemini evidence", combined.get(0).getExplanation());
+        assertEquals("Use a parameterized query.", combined.get(0).getSuggestedFix());
+        assertEquals(60, ReviewService.calculateScore(combined));
+        verify(aiService, never()).areDuplicateFindings(gemini, semgrep);
+    }
+
+    @Test
+    void keepsHighestSeverityWhenGeminiFindingIsMoreSevere() {
+        ReviewFinding gemini = finding("src/Main.java", 12, "Unsafe SQL query");
+        gemini.setSeverity("Critical");
+        ReviewFinding semgrep = finding("src/Main.java", 12, "Unsafe SQL query");
+        semgrep.setSeverity("Low");
+
+        List<ReviewFinding> combined = combine(List.of(gemini), List.of(semgrep));
+
+        assertEquals(1, combined.size());
+        assertEquals("Critical", combined.get(0).getSeverity());
+        assertEquals(60, ReviewService.calculateScore(combined));
+    }
+
+    @Test
+    void mergesDistinctExplanationsAndSuggestedFixesWithoutDiscardingEither() {
+        ReviewFinding gemini = finding("src/Main.java", 12, "Unsafe SQL query");
+        gemini.setExplanation("Gemini evidence");
+        gemini.setSuggestedFix("Validate input.");
+        ReviewFinding semgrep = finding("src/Main.java", 12, "Unsafe SQL query");
+        semgrep.setExplanation("Semgrep evidence");
+        semgrep.setSuggestedFix("Use a parameterized query.");
+
+        ReviewFinding merged = combine(List.of(gemini), List.of(semgrep)).get(0);
+
+        assertTrue(merged.getExplanation().contains("Gemini evidence"));
+        assertTrue(merged.getExplanation().contains("Semgrep evidence"));
+        assertTrue(merged.getSuggestedFix().contains("Validate input."));
+        assertTrue(merged.getSuggestedFix().contains("Use a parameterized query."));
     }
 
     @Test

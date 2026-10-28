@@ -1,5 +1,6 @@
 package com.adgroup.aicodereview.controller;
 
+import com.adgroup.aicodereview.dto.WebhookDeliveryResponse;
 import com.adgroup.aicodereview.model.GitHubWebhookDelivery.Status;
 import com.adgroup.aicodereview.service.GitHubWebhookService;
 import com.adgroup.aicodereview.service.GitHubWebhookService.InvalidSignatureException;
@@ -8,14 +9,17 @@ import com.adgroup.aicodereview.service.GitHubWebhookService.WebhookConfiguratio
 import com.adgroup.aicodereview.service.GitHubWebhookService.WebhookSchedulingException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/webhooks")
@@ -25,6 +29,12 @@ public class GitHubWebhookController {
 
     public GitHubWebhookController(GitHubWebhookService webhookService) {
         this.webhookService = webhookService;
+    }
+
+    @GetMapping("/github/deliveries")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<WebhookDeliveryResponse> getRecentDeliveries() {
+        return webhookService.getRecentDeliveries();
     }
 
     @PostMapping("/github")
