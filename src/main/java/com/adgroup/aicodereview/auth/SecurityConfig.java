@@ -23,7 +23,14 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
+import java.util.function.Supplier;
+import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
+import org.springframework.util.StringUtils;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.web.csrf.CsrfToken;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -56,10 +63,15 @@ public class SecurityConfig {
             AuthenticationProvider authenticationProvider,
             CorsConfigurationSource corsConfigurationSource) throws Exception {
         CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfTokens.setCookieCustomizer(cookie -> cookie
+        .sameSite("None")
+        .secure(true));
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokens)
-                        .ignoringRequestMatchers("/api/webhooks/github"))
+               .csrf(csrf -> csrf
+        .csrfTokenRepository(csrfTokens)
+        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
+        .ignoringRequestMatchers("/api/webhooks/github"))
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .maximumSessions(1))
@@ -95,4 +107,36 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
+    private static final class SpaCsrfTokenRequestHandler
+        implements CsrfTokenRequestHandler {
+
+    private final CsrfTokenRequestAttributeHandler plain =
+            new CsrfTokenRequestAttributeHandler();
+
+    private final XorCsrfTokenRequestAttributeHandler xor =
+            new XorCsrfTokenRequestAttributeHandler();
+
+    @Override
+    public void handle(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Supplier<CsrfToken> csrfToken) {
+
+        xor.handle(request, response, csrfToken);
+
+        // Force generation and persistence of the deferred CSRF token.
+        csrfToken.get();
+    }
+
+    @Override
+    public String resolveCsrfTokenValue(
+            HttpServletRequest request,
+            CsrfToken csrfToken) {
+
+        String headerValue = request.getHeader(csrfToken.getHeaderName());
+
+        return (StringUtils.hasText(headerValue) ? plain : xor)
+                .resolveCsrfTokenValue(request, csrfToken);
+    }
+}
 }
