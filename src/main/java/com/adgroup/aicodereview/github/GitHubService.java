@@ -1,5 +1,6 @@
 package com.adgroup.aicodereview.github;
 
+import com.adgroup.aicodereview.service.ReviewTiming;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -125,6 +126,195 @@ public String getPullRequestDiff(String owner, String repo, String pullNumber) {
         String diff = getPullRequestDiff(owner, repo, pullNumber);
         requirePullRequestHead(owner, repo, pullNumber, expectedHeadSha);
         return diff;
+    }
+
+    public PullRequestSnapshot getPullRequestSnapshot(
+            String owner,
+            String repo,
+            String pullNumber,
+            String expectedHeadSha) {
+        PullRequestRefs initialRefs = ReviewTiming.measure(
+                "github_pr_metadata_retrieval_initial",
+                () -> getPullRequestRefs(owner, repo, pullNumber));
+        if (expectedHeadSha != null
+                && !expectedHeadSha.equalsIgnoreCase(initialRefs.headSha())) {
+            throw pullRequestRevisionMismatch();
+        }
+
+        String mergeBaseSha = ReviewTiming.measure(
+                "github_merge_base_retrieval",
+                () -> getCompareMergeBase(
+                        owner, repo, initialRefs.baseSha(), initialRefs.headSha()));
+        String diff = ReviewTiming.measure(
+                "github_diff_retrieval",
+                () -> getCompareDiff(owner, repo, initialRefs.baseSha(), initialRefs.headSha()));
+        PullRequestDiff parsedDiff = ReviewTiming.measure(
+                "github_diff_parsing", () -> PullRequestDiff.parse(diff));
+        List<ChangedFileSnapshot> changedFiles = ReviewTiming.measure(
+                "github_changed_source_retrieval",
+                () -> {
+                    List<ChangedFileSnapshot> retrievedFiles = new ArrayList<>();
+                    long totalBytes = 0;
+                    for (PullRequestDiff.FileChanges file : parsedDiff.files()) {
+                        if (file.oldPath() == null && file.newPath() == null) {
+                            throw new IllegalStateException(
+                                    "GitHub returned a diff without a file path.");
+                        }
+                        if (file.oldPath() != null) {
+                            validateRepositoryPath(file.oldPath());
+                        }
+                        if (file.newPath() != null) {
+                            validateRepositoryPath(file.newPath());
+                        }
+
+                        boolean oldSupported =
+                                file.oldPath() != null && isSupportedSourceFile(file.oldPath());
+                        boolean newSupported =
+                                file.newPath() != null && isSupportedSourceFile(file.newPath());
+                        String oldContent = null;
+                        String newContent = null;
+                        if (oldSupported && !file.deletedLines().isEmpty()) {
+                            oldContent = getSourceFileContent(
+                                    owner, repo, file.oldPath(), mergeBaseSha);
+                            totalBytes += oldContent.getBytes(StandardCharsets.UTF_8).length;
+                        }
+                        if (newSupported) {
+                            newContent = getSourceFileContent(
+                                    owner, repo, file.newPath(), initialRefs.headSha());
+                            totalBytes += newContent.getBytes(StandardCharsets.UTF_8).length;
+                        }
+                        if (totalBytes > MAX_TOTAL_SOURCE_BYTES) {
+                            throw new IllegalStateException(
+                                    "Changed source files exceed the 10 MiB total analysis limit.");
+                        }
+                        retrievedFiles.add(new ChangedFileSnapshot(
+                                file, oldContent, newContent, oldSupported, newSupported));
+                    }
+                    return retrievedFiles;
+                });
+
+        PullRequestRefs finalRefs = ReviewTiming.measure(
+                "github_pr_metadata_retrieval_final",
+                () -> getPullRequestRefs(owner, repo, pullNumber));
+        if (!initialRefs.equals(finalRefs)) {
+            throw pullRequestRevisionMismatch();
+        }
+        return new PullRequestSnapshot(
+                diff,
+                initialRefs.baseSha(),
+                initialRefs.headSha(),
+                mergeBaseSha,
+                List.copyOf(changedFiles));
+    }
+    public PullRequestContext getPullRequestContext(
+        String owner,
+        String repo,
+        String pullNumber,
+        String expectedHeadSha) {
+
+    String response = getJson(
+            "/repos/{owner}/{repo}/pulls/{pull}",
+            "pull request context",
+            owner,
+            repo,
+            pullNumber);
+
+    try {
+        JsonNode pullRequest = objectMapper.readTree(response);
+
+        String actualHeadSha =
+                pullRequest.path("head").path("sha").asText("");
+
+        if (expectedHeadSha == null
+                || expectedHeadSha.isBlank()
+                || actualHeadSha.isBlank()
+                || !expectedHeadSha.equalsIgnoreCase(actualHeadSha)) {
+            throw pullRequestRevisionMismatch();
+        }
+
+        String title = pullRequest.path("title").asText("");
+        String body = pullRequest.path("body").asText("");
+
+        return new PullRequestContext(title, body);
+
+    } catch (IOException e) {
+        throw new IllegalStateException(
+                "GitHub returned invalid pull request context.", e);
+    }
+}
+
+    private String getCompareMergeBase(
+            String owner,
+            String repo,
+            String baseSha,
+            String headSha) {
+        String response = getJson(
+                "/repos/{owner}/{repo}/compare/{base}...{head}",
+                "pull request merge base",
+                owner,
+                repo,
+                baseSha,
+                headSha);
+        try {
+            String mergeBaseSha = objectMapper.readTree(response)
+                    .path("merge_base_commit").path("sha").asText("");
+            if (mergeBaseSha.isBlank()) {
+                throw new IllegalStateException(
+                        "GitHub comparison did not include a merge-base SHA.");
+            }
+            return mergeBaseSha;
+        } catch (IOException e) {
+            throw new IllegalStateException("GitHub returned invalid pull request comparison metadata.");
+        }
+    }
+
+    private String getCompareDiff(String owner, String repo, String baseSha, String headSha) {
+        try {
+            String diff = webClient.get()
+                    .uri("/repos/{owner}/{repo}/compare/{base}...{head}",
+                            owner, repo, baseSha, headSha)
+                    .header("Accept", "application/vnd.github.diff")
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError,
+                            status -> reactor.core.publisher.Mono.error(
+                                    new IllegalStateException(
+                                            "Unable to retrieve the pull request snapshot diff from GitHub.")))
+                    .bodyToMono(String.class)
+                    .block();
+            if (diff == null) {
+                throw new IllegalStateException("GitHub returned no pull request snapshot diff.");
+            }
+            return diff;
+        } catch (WebClientRequestException | WebClientResponseException e) {
+            throw new IllegalStateException(
+                    "Unable to retrieve the pull request snapshot diff from GitHub.");
+        }
+    }
+
+    private PullRequestRefs getPullRequestRefs(String owner, String repo, String pullNumber) {
+        String response = getJson(
+                "/repos/{owner}/{repo}/pulls/{pull}",
+                "pull request metadata",
+                owner,
+                repo,
+                pullNumber);
+        try {
+            JsonNode pullRequest = objectMapper.readTree(response);
+            String headSha = pullRequest.path("head").path("sha").asText("");
+            String baseSha = pullRequest.path("base").path("sha").asText("");
+            if (headSha.isBlank() || baseSha.isBlank()) {
+                throw new IllegalStateException(
+                        "GitHub pull request response did not include base and head SHAs.");
+            }
+            return new PullRequestRefs(baseSha, headSha);
+        } catch (IOException e) {
+            throw new IllegalStateException("GitHub returned invalid pull request metadata.");
+        }
+    }
+
+    private static IllegalStateException pullRequestRevisionMismatch() {
+        return new IllegalStateException(
+                "Pull request base or head changed during analysis; retry the review.");
     }
 
     public List<SourceFile> getPullRequestSourceFiles(String owner, String repo, String pullNumber) {
@@ -369,4 +559,24 @@ public String getPullRequestDiff(String owner, String repo, String pullNumber) {
     public record SourceFile(String path, String content) {
     }
 
+    public record PullRequestSnapshot(
+            String diff,
+            String baseSha,
+            String headSha,
+            String mergeBaseSha,
+            List<ChangedFileSnapshot> changedFiles) {
+    }
+
+    public record ChangedFileSnapshot(
+            PullRequestDiff.FileChanges changes,
+            String oldContent,
+            String newContent,
+            boolean oldSupported,
+            boolean newSupported) {
+    }
+
+    private record PullRequestRefs(String baseSha, String headSha) {
+    }
+     public record PullRequestContext(String title, String body) {
+}
 }

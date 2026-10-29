@@ -53,3 +53,8 @@ export async function getReviews() {
   const response = await api.get("/reviews");
   return response.data;
 }
+
+export async function getWebhookDeliveries() {
+  const response = await api.get("/api/webhooks/github/deliveries");
+  return response.data;
+}

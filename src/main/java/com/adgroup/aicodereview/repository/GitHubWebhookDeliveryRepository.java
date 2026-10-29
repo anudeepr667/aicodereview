@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -17,6 +18,8 @@ public interface GitHubWebhookDeliveryRepository
         extends JpaRepository<GitHubWebhookDelivery, Long> {
 
     Optional<GitHubWebhookDelivery> findByDeliveryId(String deliveryId);
+
+    List<GitHubWebhookDelivery> findTop100ByOrderByCreatedAtDesc();
 
     @Modifying
     @Transactional

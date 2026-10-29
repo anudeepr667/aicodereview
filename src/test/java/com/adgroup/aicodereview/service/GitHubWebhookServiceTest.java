@@ -21,6 +21,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -81,6 +82,31 @@ class GitHubWebhookServiceTest {
                 GitHubWebhookService.InvalidSignatureException.class,
                 () -> webhookService.accept(
                         "pull_request", "invalid-signature-delivery", "sha256=" + "0".repeat(64), payload));
+    }
+
+    @Test
+    void reportsPersistedStatusesAndLinksReviewsWithoutExposingStoredErrors() {
+        GitHubWebhookDelivery failed = new GitHubWebhookDelivery(
+                DELIVERY_ID, "pull_request", "opened", "owner/repo", "42", HEAD_SHA, Status.FAILED);
+        GitHubWebhookDelivery completed = new GitHubWebhookDelivery(
+                "delivery-456", "pull_request", "synchronize", "owner/repo", "43", HEAD_SHA, Status.COMPLETED);
+        Review savedReview = new Review();
+        savedReview.setId(17L);
+        savedReview.setWebhookDeliveryId("delivery-456");
+
+        when(deliveryRepository.findTop100ByOrderByCreatedAtDesc())
+                .thenReturn(List.of(failed, completed));
+        when(reviewRepository.findByWebhookDeliveryIdIn(any()))
+                .thenReturn(List.of(savedReview));
+
+        var activity = webhookService.getRecentDeliveries();
+
+        assertEquals(Status.FAILED, activity.getFirst().status());
+        assertEquals("Processing failed. Check repository access and the configured analysis services, then redeliver the webhook.",
+                activity.getFirst().errorMessage());
+        assertEquals(Status.COMPLETED, activity.get(1).status());
+        assertEquals(17L, activity.get(1).reviewId());
+        assertEquals("delivery-456", activity.get(1).deliveryId());
     }
 
     @Test

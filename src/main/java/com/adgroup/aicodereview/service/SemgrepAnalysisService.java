@@ -70,13 +70,18 @@ public class SemgrepAnalysisService {
             processBuilder.redirectOutput(diagnosticOutput.toFile());
 
             try {
-                process = processBuilder.start();
+                process = ReviewTiming.measureChecked(
+                        "semgrep_process_start",
+                        processBuilder::start);
             } catch (IOException | SecurityException e) {
                 throw new IllegalStateException(
                         "Semgrep executable was not found or could not be started; verify SEMGREP_EXECUTABLE.");
             }
 
-            if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+            Process runningProcess = process;
+            if (!ReviewTiming.measureChecked(
+                    "semgrep_execution",
+                    () -> runningProcess.waitFor(timeoutSeconds, TimeUnit.SECONDS))) {
                 if (terminateProcess(process)) {
                     throw new InterruptedException();
                 }
@@ -90,8 +95,11 @@ public class SemgrepAnalysisService {
                 throw new IllegalStateException("Semgrep completed without producing JSON output.");
             }
 
-            String json = Files.readString(jsonOutput);
-            return parseSemgrepJson(json, normalizedSourceDirectory);
+            Path resultFile = jsonOutput;
+            return ReviewTiming.measureChecked(
+                    "semgrep_result_parsing",
+                    () -> parseSemgrepJson(
+                            Files.readString(resultFile), normalizedSourceDirectory));
         } catch (InterruptedException e) {
             if (process != null) {
                 terminateProcess(process);

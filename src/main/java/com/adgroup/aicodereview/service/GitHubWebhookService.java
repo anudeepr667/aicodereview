@@ -1,5 +1,6 @@
 package com.adgroup.aicodereview.service;
 
+import com.adgroup.aicodereview.dto.WebhookDeliveryResponse;
 import com.adgroup.aicodereview.model.GitHubWebhookDelivery;
 import com.adgroup.aicodereview.model.GitHubWebhookDelivery.Status;
 import com.adgroup.aicodereview.model.Review;
@@ -22,9 +23,12 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 @Service
@@ -99,6 +103,35 @@ public class GitHubWebhookService {
             schedule(deliveryId);
         }
         return new Acceptance(delivery.getStatus(), false);
+    }
+
+    public List<WebhookDeliveryResponse> getRecentDeliveries() {
+        List<GitHubWebhookDelivery> deliveries =
+                deliveryRepository.findTop100ByOrderByCreatedAtDesc();
+        Set<String> deliveryIds = deliveries.stream()
+                .map(GitHubWebhookDelivery::getDeliveryId)
+                .collect(Collectors.toSet());
+        Map<String, Long> reviewIds = deliveryIds.isEmpty()
+                ? Map.of()
+                : reviewRepository.findByWebhookDeliveryIdIn(deliveryIds).stream()
+                        .collect(Collectors.toMap(
+                                Review::getWebhookDeliveryId,
+                                Review::getId));
+
+        return deliveries.stream()
+                .map(delivery -> new WebhookDeliveryResponse(
+                        delivery.getDeliveryId(),
+                        delivery.getRepositoryName(),
+                        delivery.getPullRequestNumber(),
+                        delivery.getEventType(),
+                        delivery.getAction(),
+                        delivery.getStatus(),
+                        delivery.getCreatedAt(),
+                        reviewIds.get(delivery.getDeliveryId()),
+                        delivery.getStatus() == Status.FAILED
+                                ? "Processing failed. Check repository access and the configured analysis services, then redeliver the webhook."
+                                : null))
+                .toList();
     }
 
     private void verifySignature(String providedSignature, byte[] payload) {

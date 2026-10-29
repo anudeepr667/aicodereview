@@ -46,7 +46,12 @@ export default function Login() {
     setIsSubmitting(true);
     try {
       await login(form);
-      const destination = location.state?.from?.pathname || "/dashboard";
+      const from = location.state?.from;
+      const destination = {
+        pathname: from?.pathname || "/dashboard",
+        search: from?.search || "",
+        hash: from?.hash || ""
+      };
       navigate(destination, { replace: true });
     } catch (requestError) {
       setError(messageFromError(requestError, "Unable to sign in with those credentials."));
