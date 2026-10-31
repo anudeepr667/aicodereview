@@ -1,8 +1,11 @@
 package com.adgroup.aicodereview.auth;
 
 import com.adgroup.aicodereview.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,18 +22,16 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
+import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import java.util.function.Supplier;
-import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
-import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
-import org.springframework.util.StringUtils;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.web.csrf.CsrfToken;
+
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -46,7 +47,9 @@ public class SecurityConfig {
     }
 
     @Bean
-    AuthenticationProvider authenticationProvider(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+    AuthenticationProvider authenticationProvider(
+            UserDetailsService userDetailsService,
+            PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
         return provider;
@@ -64,19 +67,22 @@ public class SecurityConfig {
             CorsConfigurationSource corsConfigurationSource) throws Exception {
         CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfTokens.setCookieCustomizer(cookie -> cookie
-        .sameSite("None")
-        .secure(true));
+                .sameSite("None")
+                .secure(true));
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-               .csrf(csrf -> csrf
-        .csrfTokenRepository(csrfTokens)
-        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
-        .ignoringRequestMatchers("/api/webhooks/github"))
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokens)
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
+                        .ignoringRequestMatchers("/api/webhooks/github"))
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .maximumSessions(1))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/health", "/api/auth/**", "/api/webhooks/github").permitAll()
+                        .requestMatchers("/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login",
+                                "/api/auth/logout", "/api/webhooks/github").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
@@ -107,36 +113,43 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
+
     private static final class SpaCsrfTokenRequestHandler
-        implements CsrfTokenRequestHandler {
+            implements CsrfTokenRequestHandler {
 
-    private final CsrfTokenRequestAttributeHandler plain =
-            new CsrfTokenRequestAttributeHandler();
+        private final CsrfTokenRequestAttributeHandler plain =
+                new CsrfTokenRequestAttributeHandler();
 
-    private final XorCsrfTokenRequestAttributeHandler xor =
-            new XorCsrfTokenRequestAttributeHandler();
+        private final XorCsrfTokenRequestAttributeHandler xor =
+                new XorCsrfTokenRequestAttributeHandler();
 
-    @Override
-    public void handle(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Supplier<CsrfToken> csrfToken) {
+        @Override
+        public void handle(
+                HttpServletRequest request,
+                HttpServletResponse response,
+                Supplier<CsrfToken> csrfToken) {
 
-        xor.handle(request, response, csrfToken);
+            xor.handle(request, response, csrfToken);
 
-        // Force generation and persistence of the deferred CSRF token.
-        csrfToken.get();
+            // Force generation and persistence of the deferred CSRF token.
+            csrfToken.get();
+        }
+
+        @Override
+        public String resolveCsrfTokenValue(
+                HttpServletRequest request,
+                CsrfToken csrfToken) {
+
+            String headerValue = request.getHeader(csrfToken.getHeaderName());
+
+            if (!StringUtils.hasText(headerValue)) {
+                return xor.resolveCsrfTokenValue(request, csrfToken);
+            }
+
+            String rawToken = plain.resolveCsrfTokenValue(request, csrfToken);
+            return csrfToken.getToken().equals(rawToken)
+                    ? rawToken
+                    : xor.resolveCsrfTokenValue(request, csrfToken);
+        }
     }
-
-    @Override
-    public String resolveCsrfTokenValue(
-            HttpServletRequest request,
-            CsrfToken csrfToken) {
-
-        String headerValue = request.getHeader(csrfToken.getHeaderName());
-
-        return (StringUtils.hasText(headerValue) ? plain : xor)
-                .resolveCsrfTokenValue(request, csrfToken);
-    }
-}
 }

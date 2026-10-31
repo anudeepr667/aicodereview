@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-
+let csrfToken = null;
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { "Content-Type": "application/json" },
@@ -10,7 +10,18 @@ const api = axios.create({
   xsrfCookieName: "XSRF-TOKEN",
   xsrfHeaderName: "X-XSRF-TOKEN",
 });
+api.interceptors.request.use((config) => {
+  const method = config.method?.toLowerCase();
 
+  if (
+    csrfToken &&
+    ["post", "put", "patch", "delete"].includes(method)
+  ) {
+    config.headers.set("X-XSRF-TOKEN", csrfToken);
+  }
+
+  return config;
+});
 api.interceptors.response.use(undefined, (error) => {
   if (error.response?.status === 401 && !error.config?.url?.includes("/api/auth/")) {
     window.dispatchEvent(new Event("auth:expired"));
@@ -20,7 +31,9 @@ api.interceptors.response.use(undefined, (error) => {
 
 export async function getCsrfToken() {
   const response = await api.get("/api/auth/csrf");
-  api.defaults.headers.common["X-XSRF-TOKEN"] = response.data.token;
+
+  csrfToken = response.data.token;
+
   return response.data;
 }
 

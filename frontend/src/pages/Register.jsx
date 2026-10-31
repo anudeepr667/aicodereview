@@ -4,7 +4,23 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 
 function messageFromError(error, fallback) {
-  return error.response?.data?.message || fallback;
+  if (!error.response) {
+    return "Could not reach the registration server. Check that the backend is running and try again.";
+  }
+
+  const responseData = error.response.data;
+  if (typeof responseData === "string" && responseData.trim()) {
+    return responseData;
+  }
+
+  if (responseData && typeof responseData === "object") {
+    const message = responseData.message || responseData.error;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+
+  return `${fallback} (HTTP ${error.response.status}).`;
 }
 
 export default function Register() {
